@@ -1,9 +1,9 @@
 import { useState } from "react";
 import server from "./server";
-import signTransaction from "../utils/sign.js";
+import signTransaction from "../utils/wallet.js";
 import {toHex} from "ethereum-cryptography/utils";
 
-function Transfer({ privateKey, setBalance }) {
+function Transfer({ address, setBalance }) {
   const [sendAmount, setSendAmount] = useState("");
   const [recipient, setRecipient] = useState("");
 
@@ -12,13 +12,16 @@ function Transfer({ privateKey, setBalance }) {
   async function transfer(evt) {
     evt.preventDefault();
 
+
     const [signature, recoveryBit] = await signTransaction(
-    {
-        amount: parseInt(sendAmount),
-        recipient
-      },
-      privateKey
+        {
+          sender: address,
+          amount: parseInt(sendAmount),
+          recipient
+        },
+        address
     );
+
 
     try {
       const {
@@ -28,6 +31,7 @@ function Transfer({ privateKey, setBalance }) {
           signature: toHex(signature),
           recoveryBit
         },
+        sender: address,
         amount: parseInt(sendAmount),
         recipient,
       });

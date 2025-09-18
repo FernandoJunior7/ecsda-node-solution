@@ -6,12 +6,8 @@ const port = 3042;
 app.use(cors());
 app.use(express.json());
 
-// private key 1: b7f3690695c6b73b5f8736fd3aa5941e950a8516ba4014c1ee825acf9227c280
-// private key 2: dfebc8b77bb37ba9c79a7b23ac930e971cdd2ea8acfbfacec6ea288d195d5c35
-// private key 3: cbf818605e5f7a25661aa58d9a2790c1645eb3eca6b91ec43ed3285c5fe6a959
-
 const secp = require("ethereum-cryptography/secp256k1");
-const { utf8ToBytes, toHex, hexToBytes} = require("ethereum-cryptography/utils");
+const { utf8ToBytes } = require("ethereum-cryptography/utils");
 const { keccak256 } = require("ethereum-cryptography/keccak");
 
 const balances = {
@@ -27,18 +23,18 @@ app.get("/balance/:address", (req, res) => {
 });
 
 app.post("/send", (req, res) => {
-  const { signature, recipient, amount } = req.body;
+  const { signature, sender, recipient, amount } = req.body;
 
   const stringifiedTransaction = JSON.stringify({
+    sender,
     amount: parseInt(amount),
     recipient
   });
   const hashedTransaction = keccak256(utf8ToBytes(stringifiedTransaction));
 
   const publicKey = secp.recoverPublicKey(hashedTransaction, signature.signature, signature.recoveryBit);
-  const senderAddress = "0x" + toHex(publicKey).slice(1).slice(-20);
 
-  setInitialBalance(senderAddress);
+  setInitialBalance(sender);
   setInitialBalance(recipient);
 
   const isVerified = secp.verify(signature.signature, hashedTransaction, publicKey);
@@ -46,13 +42,19 @@ app.post("/send", (req, res) => {
   if (!isVerified) {
     res.status(400).send({ message: "Invalid signature!" });
   }
-  if (balances[senderAddress] < amount) {
+  if (balances[sender] < amount) {
     res.status(400).send({ message: "Not enough funds!" });
-  } else {
-    balances[senderAddress] -= amount;
-    balances[recipient] += amount;
-    res.send({ balance: balances[senderAddress] });
   }
+  if (sender === recipient) {
+    res.status(400).send({ message: "Cannot send to yourself!" });
+  }
+  if (!balances[recipient]) {
+    res.status(404).send({ message: "Recipient does not exist!" });
+  }
+
+  balances[sender] -= amount;
+  balances[recipient] += amount;
+  res.send({ balance: balances[sender] });
 });
 
 app.listen(port, () => {
